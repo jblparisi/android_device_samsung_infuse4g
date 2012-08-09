@@ -139,6 +139,6 @@ int ProximitySensor::readEvents(sensors_event_t* data, int count)
 
 float ProximitySensor::indexToValue(size_t index) const
 {
-    LOGV("ProximitySensor: Index = %zu", index);
+    ALOGV("ProximitySensor: Index = %zu", index);
     return index * PROXIMITY_THRESHOLD_CM;
 }
