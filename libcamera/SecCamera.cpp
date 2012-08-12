@@ -567,6 +567,7 @@ SecCamera::SecCamera() :
             m_slow_ae(-1),
             m_camera_af_flag(-1),
             m_flag_camera_start(0),
+            m_flag_camera_restart(0),
             m_jpeg_thumbnail_width (0),
             m_jpeg_thumbnail_height(0),
             m_jpeg_quality(100)
@@ -819,6 +820,7 @@ int SecCamera::startPreview(void)
     }
 
     m_flag_camera_start = 1;
+    m_flag_camera_restart = 1;
 
     if (m_camera_id == CAMERA_ID_FRONT) {
         /* Activate preview mode */
@@ -1292,6 +1294,8 @@ int SecCamera::getExif(unsigned char *pExifDst, unsigned char *pThumbSrc)
 {
     JpegEncoder jpgEnc;
 
+    //FIXME:  Disabled thumbnails for now as they're always green
+#if 0
     ALOGV("%s : m_jpeg_thumbnail_width = %d, height = %d",
          __func__, m_jpeg_thumbnail_width, m_jpeg_thumbnail_height);
     if ((m_jpeg_thumbnail_width > 0) && (m_jpeg_thumbnail_height > 0)) {
@@ -1340,9 +1344,12 @@ int SecCamera::getExif(unsigned char *pExifDst, unsigned char *pThumbSrc)
         ALOGV("%s : enableThumb set to true", __func__);
         mExifInfo.enableThumb = true;
     } else {
+#endif
         ALOGV("%s : enableThumb set to false", __func__);
         mExifInfo.enableThumb = false;
+#if 0
     }
+#endif
 
     unsigned int exifSize;
 
@@ -1966,9 +1973,10 @@ int SecCamera::setFlashMode(int flash_mode)
         return -1;
     }
 
-    if (m_params->flash_mode != flash_mode) {
+    if ((m_params->flash_mode != flash_mode) || m_flag_camera_restart) {
         if (m_flag_camera_start) {
             m_params->flash_mode = flash_mode;
+	    m_flag_camera_restart = 0;
             if (fimc_v4l2_s_ctrl(m_cam_fd, V4L2_CID_CAMERA_FLASH_MODE, flash_mode) < 0) {
                 ALOGE("ERR(%s):Fail on V4L2_CID_CAMERA_FLASH_MODE", __func__);
                 return -1;
@@ -2956,7 +2964,8 @@ void SecCamera::setExifChangedAttribute()
     //2 0th IFD Exif Private Tags
     //3 Exposure Time
     int shutterSpeed = fimc_v4l2_g_ctrl(m_cam_fd,
-                                            V4L2_CID_CAMERA_GET_SHT_TIME);
+                                            V4L2_CID_CAMERA_EXIF_EXPTIME);
+
     /* TBD - front camera needs to be fixed to support this g_ctrl,
        it current returns a negative err value, so avoid putting
        odd value into exif for now */
@@ -2970,7 +2979,8 @@ void SecCamera::setExifChangedAttribute()
     mExifInfo.exposure_time.den = (uint32_t)(1000000 / shutterSpeed);
 
     //3 ISO Speed Rating
-    int iso = fimc_v4l2_g_ctrl(m_cam_fd, V4L2_CID_CAMERA_GET_ISO);
+    int iso = fimc_v4l2_g_ctrl(m_cam_fd, V4L2_CID_CAMERA_EXIF_ISO);
+
     /* TBD - front camera needs to be fixed to support this g_ctrl,
        it current returns a negative err value, so avoid putting
        odd value into exif for now */
@@ -3018,6 +3028,7 @@ void SecCamera::setExifChangedAttribute()
     //3 Brightness
     mExifInfo.brightness.num = bv*EXIF_DEF_APEX_DEN;
     mExifInfo.brightness.den = EXIF_DEF_APEX_DEN;
+
     //3 Exposure Bias
     if (m_params->scene_mode == SCENE_MODE_BEACH_SNOW) {
         mExifInfo.exposure_bias.num = EXIF_DEF_APEX_DEN;
